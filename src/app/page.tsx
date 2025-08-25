@@ -1,4 +1,3 @@
-// src/app/page.tsx
 'use client';
 
 import { useState } from "react";
@@ -6,13 +5,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
-// --- Simulating a database of existing users
-const existingUsers = [
-  { email: "test@example.com" },
-  { email: "user@domain.com" },
-];
-
-// --- Zod Schema
 const authSchema = z
   .object({
     email: z.string().email("Invalid email address").trim(),
@@ -55,27 +47,41 @@ export default function AuthPage() {
     resolver: zodResolver(authSchema),
   });
 
-  const onSubmit = (data: AuthData) => {
-    if (pageState === 'signIn') {
-      console.log("Signing In with data:", data);
-      alert(`Signing in with email: ${data.email}`);
-    } else { // Sign-Up logic
-      const isEmailTaken = existingUsers.some(user => user.email === data.email);
-      if (isEmailTaken) {
-        setError("email", {
-          type: "manual",
-          message: "This email is already registered",
-        });
+  const onSubmit = async (data: AuthData) => {
+    let endpoint = pageState === 'signIn' ? 'login' : 'signup';
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          setError("email", { type: "manual", message: result.error });
+        } else {
+          setError("email", { type: "manual", message: result.error || 'An unexpected error occurred' });
+        }
         return;
       }
-      
-      // If sign-up is successful
-      console.log("Signing Up with data:", data);
-      alert(`Signing up with email: ${data.email}`);
-      
-      // Automatically redirect to the Sign In page
-      setPageState('signIn');
-      reset(); // Resets the form after a successful sign-up
+
+      // Success logic
+      if (pageState === 'signUp') {
+        alert(result.message + ' You can now sign in!');
+        setPageState('signIn');
+      } else {
+        alert(result.message);
+      }
+      reset();
+
+    } catch (error) {
+      console.error('API call failed:', error);
+      setError("email", { type: "manual", message: 'Failed to connect to the server' });
     }
   };
 
